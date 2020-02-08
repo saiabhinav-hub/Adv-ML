@@ -1,0 +1,427 @@
+---
+title: "IMDB - Hypertuning"
+author: "smandumu"
+date: "2/7/2020"
+output: html_document
+---
+# The IMDB dataset
+
+Load IMDB dataset
+The IMDB dataset is preloaded in the Keras
+
+```{r}
+library(keras)
+library(tensorflow)
+library(tidyverse)
+library(cowplot)
+
+imdb <- dataset_imdb(num_words = 10000)
+c(c(train_data, train_labels), c(test_data, test_labels)) %<-% imdb
+```
+
+The argument num_words = 10000 means that we will only keep the top 10,000 most frequently occurring words in the training data. Rare words will be discarded
+
+The variables train_data and test_data are lists of reviews, each review being a list of word indices (encoding a sequence of words). train_labels and test_labels are lists of 0s and 1s, where 0 stands for “negative” and 1 stands for “positive”:
+
+# Preparing the Data
+
+```{r}
+vectorize_sequences <- function(sequences, dimension = 10000) {
+  # Create an all-zero matrix of shape (len(sequences), dimension)
+  results <- matrix(0, nrow = length(sequences), ncol = dimension)
+  for (i in 1:length(sequences))
+    # Sets specific indices of results[i] to 1s
+    results[i, sequences[[i]]] <- 1
+  results
+}
+
+# Our vectorized training data
+x_train <- vectorize_sequences(train_data)
+# Our vectorized test data
+x_test <- vectorize_sequences(test_data)
+# Our vectorized labels
+y_train <- as.numeric(train_labels)
+y_test <- as.numeric(test_labels)
+set.seed(123)
+val_indices <- sample(1:nrow(x_train),nrow(x_train)*0.40)
+
+x_val <- x_train[val_indices,]
+partial_x_train <- x_train[-val_indices,]
+
+y_val <- y_train[val_indices]
+partial_y_train <- y_train[-val_indices]
+```
+
+# Building our network and Validating our Approach
+
+# 1-hidden layer network without any technique
+
+1-hidden layer network with 16 units 
+tanh activation
+mse loss function 
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 16, activation = "tanh", input_shape = c(10000)) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+str(history)
+plot(history)
+```
+
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 3, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+
+This network begins to overfit after three epochs.
+
+Here the validation Accuracy is 86% and loss of 12%. The result seems good. But let's try to improve the model by using other techniques like regularization and dropout
+
+#       1- hidden layer network with regularization
+
+1-hidden layer network with 16 units
+tanh activation
+mse loss function
+regularization technique
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 16,  kernel_regularizer = regularizer_l2(.0001),activation = "tanh", input_shape = c(10000)) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+str(history)
+plot(history)
+```
+
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+
+
+
+
+This network begins to overfit after four epochs
+
+Here the validation Accuracy is 87% and loss of 11%. The result seems good. But the accuracy is lesser when compared to the previous one. We can try to improve the model by using both the techniques regularization and dropout
+
+# 1- Hidden layer network with regularization and drop out
+
+1-hidden layer network with 16 units
+tanh activation
+mse loss function
+regularization and dropout techniques
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 16,  kernel_regularizer = regularizer_l2(.0001),activation = "tanh", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+str(history)
+plot(history)
+```
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 5, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+
+
+This network begins to overfit after five epochs
+
+Here the validation Accuracy is 87% and loss of 13%. The result seems good. We can try to improve the model by using more hidden layers.
+
+# 3- Hidden layer network without regualrization and dropout
+
+3-hidden layer network with 64, 32 and 16 units
+tanh activation
+mse loss function
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 64, activation = "tanh", input_shape = c(10000)) %>%
+  layer_dense(units = 32, activation = "tanh") %>%
+  layer_dense(units = 16, activation = "tanh") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+str(history)
+plot(history)
+
+
+```
+
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 2, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+```
+
+This network begins to overfit after two epochs
+
+Here the validation Accuracy is 86% and loss of 11%. The result seems good. We can try to improve the model by using regularization with the same hidden layers.
+
+# 3-layer network with regualrization
+
+3-hidden layer network with 64, 32 and 16 units
+tanh activation
+mse loss function
+regularization technique
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 64, kernel_regularizer = regularizer_l2(.0001), activation = "tanh", input_shape = c(10000)) %>%
+  layer_dense(units = 32, kernel_regularizer = regularizer_l2(.0001), activation = "tanh") %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(.0001), activation = "tanh") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+hist1 <- as.data.frame(history$metrics)
+names(hist1) <- c("train-loss","train-accuracy","val_loss","val_accuracy")
+hist1 <- hist1 %>% mutate(epochs = 1:n()) %>% gather("split","values",-epochs) %>% separate(split,c("split","metric")) %>% spread(metric,values)
+
+g1<- ggplot(hist1,aes(x=epochs,y=loss,color=split)) + geom_point() + geom_line() + theme_classic() + ggtitle("Validation loss") + theme(legend.position = "top",legend.justification = "left",legend.title = element_blank()) +scale_color_manual(values = c("red","blue"))
+g2<- ggplot(hist1,aes(x=epochs,y=accuracy,color=split)) + geom_point(show.legend = F) + geom_line(show.legend = F) + theme_classic() + ggtitle("Validation Accuracy") + theme(legend.position = "top",legend.justification = "left",legend.title = element_blank()) + scale_color_manual(values = c("red","blue")) 
+plot_grid(g1,g2,nrow=2)
+str(history)
+plot(history)
+```
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 3, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+
+This network begins to overfit after one epoch
+
+Here the validation Accuracy is 85% and loss of 13%. The result seems good. But the accuracy is less when compared to the previous one. We can try to improve the model by using both regularization and dropout.
+
+# 3-layer network with regualrization
+
+3-hidden layer network with 64, 32 and 16 units
+relu activation
+mse loss function
+regularization technique
+
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 64, kernel_regularizer = regularizer_l1(.0001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 32, kernel_regularizer = regularizer_l1(.0001), activation = "relu") %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l1(.0001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+hist1 <- as.data.frame(history$metrics)
+names(hist1) <- c("train-loss","train-accuracy","val_loss","val_accuracy")
+hist1 <- hist1 %>% mutate(epochs = 1:n()) %>% gather("split","values",-epochs) %>% separate(split,c("split","metric")) %>% spread(metric,values)
+
+g1<- ggplot(hist1,aes(x=epochs,y=loss,color=split)) + geom_point() + geom_line() + theme_classic() + ggtitle("Validation loss") + theme(legend.position = "top",legend.justification = "left",legend.title = element_blank()) +scale_color_manual(values = c("red","blue"))
+g2<- ggplot(hist1,aes(x=epochs,y=accuracy,color=split)) + geom_point(show.legend = F) + geom_line(show.legend = F) + theme_classic() + ggtitle("Validation Accuracy") + theme(legend.position = "top",legend.justification = "left",legend.title = element_blank()) + scale_color_manual(values = c("red","blue")) 
+plot_grid(g1,g2,nrow=2)
+str(history)
+plot(history)
+```
+
+
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 9, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+
+```
+
+# 3-Hidden layer network with regualrization and dropout
+
+3-hidden layer network with 64, 32 and 16 units
+tanh activation
+mse loss function
+regularization and dropout
+
+```{r}
+
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 32, kernel_regularizer = regularizer_l1(.001), activation = "tanh", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l1(.001), activation = "tanh") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l1(.001), activation = "tanh") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+str(history)
+plot(history)
+
+```
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 8, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+
+```
+
+
+
+This network begins to overfit after two epochs. 
+
+Here the validation Accuracy is 88% and loss of 1o%. The result seems pretty good.This is the best among all other models.  
+To prevent overfitting, stop training after one epoch.
+Let?s train a new network from scratch for two epochs and then evaluate it on the test data.
+```{r}
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 64, kernel_regularizer = regularizer_l1(.0001), activation = "tanh", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 32, kernel_regularizer = regularizer_l1(.0001), activation = "tanh") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l1(.0001), activation = "tanh") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+```
+
+Our fairly naive approach achieves an accuracy of 88%.
+
+# Using a trained network to generate predictions on new data
+
+After having trained a network, you will want to use it in a practical setting. You can generate the likelihood of reviews being positive by using the predict method:
+
+```{r}
+model %>% fit(x_train, y_train, epochs = 8, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+
+results
+model %>% predict(x_test[1:10,])
+```
+
+As you can see, the network is very confident for some samples (0.99 or more, or 0.02 or less) but less confident for others.
