@@ -1,0 +1,108 @@
+---
+title: "IMDB_RNN"
+author: "smandumu"
+date: "3/6/2020"
+output: html_document
+---
+```{r}
+library(keras)
+library(reticulate)
+library(dplyr)
+imdb <- dataset_imdb(num_words = 10000)
+c(c(x_train,y_train),c(x_test,y_test)) %<-% imdb
+maxlen <- 150                 # We will cut reviews after 150 words
+training_samples <- 100       # We will be training on 200 samples
+validation_samples <- 10000   # We will be validating on 10000 samples
+max_words <- 10000            # We will only consider the top 10,000 words in the dataset
+
+x_train <- pad_sequences(x_train,maxlen = maxlen) 
+x_test <- pad_sequences(x_test,maxlen=maxlen)
+set.seed(123)
+train_index <- sample(1:nrow(x_train),training_samples)
+train_data <- x_train[train_index,]
+train_label <- y_train[train_index]
+traVal_data <- x_train[-train_index,]
+traVal_label <- y_train[-train_index]
+set.seed(1234)
+valid_index <- sample(1:nrow(traVal_data),validation_samples)
+valid_data <- traVal_data[valid_index,] 
+valid_label <- traVal_label[valid_index]
+# Using an embedding layer and classifier on the IMDB data
+model <- keras_model_sequential() %>% layer_embedding(input_dim = 10000,output_dim = 3,input_length = maxlen) %>% 
+  layer_flatten() %>% layer_dense(units=1,activation = "sigmoid")
+model %>% compile(optimizer = "rmsprop",loss = "binary_crossentropy",metrics=c("acc"))
+
+history <- model %>% fit(train_data,train_label,epochs=10,batch_size=32,validation_data = list(valid_data,valid_label))
+# Plot of Accuracy and Loss function of the model
+plot(history)
+# By observing the plot, the validation accuracy of the model is ~70% considering the first 150 words in every review with 100 samples.
+
+# Evaluating the test dataset 
+model %>% fit(
+  train_data,
+  train_label,
+  epochs = 2,
+  batch_size = 20)
+result <- model %>%  evaluate(x_test,y_test)
+result # Test Acuuracy of the model is 51%
+
+# Word index of the IMDB dataset 
+word_index_1 <- dataset_imdb_word_index()
+# Parsing the GloVe word-embeddings file
+glove_dir = 'D:/MSBA/Adv ML/glove.6B'
+lines <- readLines(file.path(glove_dir, "glove.6B.100d.txt"))
+
+embeddings_index <- new.env(hash = TRUE, parent = emptyenv())
+for (i in 1:length(lines)) {
+  line <- lines[[i]]
+  values <- strsplit(line, " ")[[1]]
+  word <- values[[1]]
+  embeddings_index[[word]] <- as.double(values[-1])
+}
+cat("Found", length(embeddings_index), "word vectors.\n")
+
+
+# Preparing the GloVe word-embeddings matrix
+embedding_dim <- 100
+embedding_matrix <- array(0, c(max_words, embedding_dim))
+for (word in names(word_index_1)) {
+  index <- word_index_1[[word]]
+  if (index < max_words) {
+    embedding_vector <- embeddings_index[[word]]
+    if (!is.null(embedding_vector))
+      embedding_matrix[index+1,] <- embedding_vector
+  }
+}
+
+# Model construction
+model <- keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words, output_dim = embedding_dim,input_length = maxlen) %>%
+  layer_flatten() %>%
+  layer_dense(units = 32, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Loading pretrained word embeddings into the embedding layer
+get_layer(model, index = 1) %>%
+  set_weights(list(embedding_matrix)) %>%
+  freeze_weights()
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("acc")
+)
+
+history1 <- model %>% fit(
+  train_data, train_label,
+  epochs = 20,
+  batch_size = 32,
+  validation_data = list(valid_data , valid_label)
+)
+plot(history1)
+# By observing the above plot, the validaiton accuracy of the model is ~50% with 100 samples in the training dataset.THe model quickly starts overfitting with small number of traning samples. Hence with having few traning samples, performance is highly dependent on exactly which 100 samples are choosen and choosing at random. 
+
+
+save_model_weights_hdf5(model, "Glove_model.h5")
+
+```
+
