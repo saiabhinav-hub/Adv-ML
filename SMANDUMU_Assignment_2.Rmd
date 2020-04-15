@@ -1,0 +1,41 @@
+---
+title: "SMANDUMU_Assignment_2"
+author: "smandumu"
+date: "4/14/2020"
+output: pdf_document
+---
+```{r}
+library(mlbench)
+library(dplyr)
+library(caret)
+data(BreastCancer) 
+dim(BreastCancer)
+levels(BreastCancer$Class)
+str(BreastCancer)
+length(which(is.na(BreastCancer)))
+library(mice)
+BreastCancer <- na.omit(BreastCancer)
+BreastCancer <- select(BreastCancer,-c(1))
+set.seed(2020)    
+library(caTools)#Package has split function which is used to split our dataset into training and test data.
+split=sample.split(BreastCancer, SplitRatio = 0.7)  # Splitting data into training and test dataset
+trg_set=subset(BreastCancer,split==TRUE)  # Training dataset
+test_set=subset(BreastCancer,split==FALSE)# Test dataset
+# Implementing RandomForest
+library(randomForest)
+model1_rf <- randomForest(Class ~., data = trg_set)
+model1_rf
+#Sspecifying mtry values as 2,6,8
+model2_rf <- randomForest(Class ~., data = trg_set,mtry=c(2,6,8))
+model2_rf
+probs <-predict(model2_rf,test_set,type="prob")
+head(probs)
+pred_class <-predict(model2_rf,test_set)
+head(pred_class)
+(conf_matrix_forest <- table(pred_class,test_set$Class))
+confusionMatrix(conf_matrix_forest)
+library(gmodels)
+CrossTable(pred_class,test_set$Class,digits = TRUE)
+
+```
+
