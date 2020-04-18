@@ -1,0 +1,33 @@
+---
+title: "smandumu_A3"
+author: "smandumu"
+date: "4/18/2020"
+output: pdf_document
+---
+```{r}
+library(arules)  #Arules, open source package is a powerful tool-set for mining associative rules
+library(arulesViz)
+groceries <- read.transactions("groceries_v2.csv",header=FALSE,format = "basket",sep = ",")
+summary(groceries)
+itemLabels(groceries) # The Items list
+summary(groceries)
+itemFrequencyPlot(groceries,topN=20,type="absolute") #to look into the item frequency
+itemFrequencyPlot(groceries,topN=20,type="relative") #to look into the item frequency
+# frequent itemsets, association rules using the Apriori algorithm
+(gm <- apriori(groceries, parameter=list(support=0.01, confidence=0.5)))
+summary(gm)
+inspect(head(sort(gm, by ="lift"),5))
+plot(gm,method = "graph")
+#Rules that lead to buying "whole milk"
+(wmilk_rules<- apriori(data=groceries, parameter=list (support=0.01,confidence = 0.5), appearance = list (rhs="whole milk")))
+# Rules wrt Whole Milk
+inspect(head(sort(wmilk_rules,by="confidence"),3))
+#Rules that lead to buying "whole milk" on LHS side
+(wmilk_rules<- apriori(data=groceries, parameter=list (support=0.01,confidence = 0.5), appearance = list (lhs="whole milk")))
+# We see 0 Rules associated
+plot(gm)
+plot(gm,method = "matrix")
+
+
+```
+
