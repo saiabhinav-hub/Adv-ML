@@ -1,0 +1,41 @@
+---
+title: "smandumu_A4"
+author: "smandumu"
+date: "4/23/2020"
+output: pdf_document
+---
+```{r}
+library(mlbench)
+library(dplyr)
+library(caret)
+library(gmodels)
+library(tidyverse)
+data(BreastCancer) 
+dim(BreastCancer)
+levels(BreastCancer$Class)
+str(BreastCancer)
+length(which(is.na(BreastCancer)))
+library(mice)
+BreastCancer <- BreastCancer[,-1] %>% drop_na()
+levels(BreastCancer$Class)
+set.seed(2020)    
+library(caTools)#Package has split function which is used to split our dataset into training and test data.
+split=sample.split(BreastCancer, SplitRatio = 0.7)  # Splitting data into training and test dataset
+trg_set=subset(BreastCancer,split==TRUE)  # Training dataset
+test_set=subset(BreastCancer,split==FALSE)# Test dataset
+# SVM Model and Raw propability 
+library(e1071)
+(svm_model <- svm(Class~., data=trg_set,method = 'svmlinear')) 
+(svm_pred <-predict(svm_model,test_set,type = "raw"))
+CrossTable(svm_pred,test_set$Class)
+confusionMatrix(svm_pred,test_set$Class)
+# Building model with different "C" parameter(1,2.5, 6.25) 
+library(kernlab)
+Grid_Search <- expand.grid(.C = c(1,2.5,6.25))
+(svm_model2 <- train(Class~. , data = trg_set, method = "svmLinear",tuneGrid = Grid_Search))
+svm_pred2 <- predict(svm_model2,test_set, type = "raw")
+CrossTable(svm_pred2,test_set$Class)
+confusionMatrix(svm_pred2,test_set$Class)
+
+```
+
